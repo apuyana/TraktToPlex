@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Newtonsoft.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 
-namespace TraktToPlex.Plex.Models.Shows
+namespace PlexClient.Models
 {
-    public class Show : IMediaItem
+    public class Movie : IMediaItem
     {
-        public string Id { get; set; }
-        public string Title { get; set; }
         public string ExternalProvider { get; set; }
         public string ExternalProviderId { get; set; }
+
         [JsonProperty("guid")]
         public string ExternalProviderInfo
         {
@@ -24,6 +19,8 @@ namespace TraktToPlex.Plex.Models.Shows
                 ExternalProviderId = match.Groups["id"].Value;
             }
         }
-        public Season[] Seasons { get; set; }
+
+        public string Id { get; set; }
+        public string Title { get; set; }
     }
 }

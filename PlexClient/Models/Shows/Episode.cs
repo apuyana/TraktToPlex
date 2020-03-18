@@ -1,16 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
-namespace TraktToPlex.Plex.Models.Shows
+namespace PlexClient.Models.Shows
 {
     public class Episode : IHasId
     {
         public string Id { get; set; }
+
         [JsonProperty("index")]
         public int No { get; set; }
+
         [JsonProperty("viewCount")]
         public int ViewCount { get; set; }
     }

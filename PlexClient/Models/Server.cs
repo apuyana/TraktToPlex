@@ -1,4 +1,4 @@
-﻿namespace TraktToPlex.Plex.Models
+﻿namespace PlexClient.Models
 {
     public class Server
     {

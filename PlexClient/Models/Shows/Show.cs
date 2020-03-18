@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Newtonsoft.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 
-namespace TraktToPlex.Plex.Models
+namespace PlexClient.Models.Shows
 {
-    public class Movie : IMediaItem
+    public class Show : IMediaItem
     {
-        public string Id { get; set; }
-        public string Title { get; set; }
         public string ExternalProvider { get; set; }
         public string ExternalProviderId { get; set; }
 
@@ -25,5 +19,9 @@ namespace TraktToPlex.Plex.Models
                 ExternalProviderId = match.Groups["id"].Value;
             }
         }
+
+        public string Id { get; set; }
+        public Season[] Seasons { get; set; }
+        public string Title { get; set; }
     }
 }

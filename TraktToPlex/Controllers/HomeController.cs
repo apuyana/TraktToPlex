@@ -11,19 +11,25 @@ using Microsoft.Extensions.Configuration;
 using TraktNet;
 using TraktToPlex.Extensions.Microsoft.AspNetCore.Mvc;
 using TraktToPlex.Models;
-using TraktToPlex.Plex;
+using Plex = PlexClient;
 
 namespace TraktToPlex.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly PlexClient _plexClient;
+        private readonly Plex.Client _plexClient;
         private readonly IConfiguration _config;
 
-        public HomeController(PlexClient plexClient, IConfiguration config)
+        public HomeController(Plex.Client plexClient, IConfiguration config)
         {
-            _plexClient = plexClient;
             _config = config;
+            _plexClient = plexClient;
+
+            if (!_plexClient.HasClientId)
+            {
+                _plexClient.SetClientId(_config["PlexConfig:ClientSecret"]);
+            }
+
         }
         public async Task<IActionResult> Index()
         {

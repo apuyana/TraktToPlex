@@ -1,11 +1,12 @@
 ﻿using Newtonsoft.Json;
 
-namespace TraktToPlex.Plex.Models
+namespace PlexClient.Models
 {
     public class Section
     {
         [JsonProperty("key")]
         public string Id { get; set; }
+
         [JsonProperty("type")]
         public string Type { get; set; }
     }

@@ -9,22 +9,27 @@ using TraktNet.Objects.Authentication;
 using TraktNet.Objects.Basic;
 using TraktNet.Objects.Get.Movies;
 using TraktNet.Requests.Parameters;
-using TraktToPlex.Plex;
-using TraktToPlex.Plex.Models;
-using TraktToPlex.Plex.Models.Shows;
+using Plex = PlexClient;
+using PlexClient.Models;
+using PlexClient.Models.Shows;
 
 namespace TraktToPlex.Hubs
 {
     public class MigrationHub : Hub
     {
         private readonly IConfiguration _config;
-        private readonly PlexClient _plexClient;
+        private readonly Plex.Client _plexClient;
         private readonly TraktClient _traktClient;
 
-        public MigrationHub(IConfiguration config, PlexClient plexClient)
+        public MigrationHub(IConfiguration config, Plex.Client plexClient)
         {
             _config = config;
             _plexClient = plexClient;
+            if (!_plexClient.HasClientId)
+            {
+                _plexClient.SetClientId(_config["PlexConfig:ClientSecret"]);
+            }
+
             _traktClient = new TraktClient(_config["TraktConfig:ClientId"], _config["TraktConfig:ClientSecret"]);
         }
 
@@ -38,9 +43,9 @@ namespace TraktToPlex.Hubs
                 _traktClient.Authorization = TraktAuthorization.CreateWith(traktKey);
 
                 await MigrateTvShows();
-                await ReportProgress( "--------------------------------------------");
-                await ReportProgress( "Finished migrating TV Shows!");
-                await ReportProgress( "--------------------------------------------");
+                await ReportProgress("--------------------------------------------");
+                await ReportProgress("Finished migrating TV Shows!");
+                await ReportProgress("--------------------------------------------");
 
                 await MigrateMovies();
                 await ReportProgress("--------------------------------------------");
@@ -55,14 +60,14 @@ namespace TraktToPlex.Hubs
 
         private async Task MigrateTvShows()
         {
-            await ReportProgress( "Importing Trakt shows..");
+            await ReportProgress("Importing Trakt shows..");
             var traktShows = (await _traktClient.Sync.GetWatchedShowsAsync(new TraktExtendedInfo().SetFull())).ToArray();
-            await ReportProgress( $"Found {traktShows.Length} shows on Trakt");
+            await ReportProgress($"Found {traktShows.Length} shows on Trakt");
 
             await ReportProgress("Importing Plex shows..");
             var plexShows = await _plexClient.GetShows();
-            await ReportProgress( $"Found {plexShows.Length} shows on Plex");
-            await ReportProgress( "Going through all shows on Plex, to see if we find a match on Trakt..");
+            await ReportProgress($"Found {plexShows.Length} shows on Plex");
+            await ReportProgress("Going through all shows on Plex, to see if we find a match on Trakt..");
             var i = 0;
             foreach (var plexShow in plexShows)
             {
@@ -75,10 +80,10 @@ namespace TraktToPlex.Hubs
                 var traktShow = traktShows.FirstOrDefault(x => HasMatchingId(plexShow, x.Ids));
                 if (traktShow == null)
                 {
-                    await ReportProgress( $"({i}/{plexShows.Length}) The show \"{plexShow.Title}\" was not found as watched on Trakt. Skipping!");
+                    await ReportProgress($"({i}/{plexShows.Length}) The show \"{plexShow.Title}\" was not found as watched on Trakt. Skipping!");
                     continue;
                 }
-                await ReportProgress( $"({i}/{plexShows.Length}) Found the show \"{plexShow.Title}\" as watched on Trakt. Processing!");
+                await ReportProgress($"({i}/{plexShows.Length}) Found the show \"{plexShow.Title}\" as watched on Trakt. Processing!");
                 await _plexClient.PopulateSeasons(plexShow);
                 foreach (var traktSeason in traktShow.WatchedSeasons.Where(x => x.Number.HasValue))
                 {
@@ -94,9 +99,9 @@ namespace TraktToPlex.Hubs
                             continue;
                         scrobbleEpisodes.Add(plexEpisode);
                     }
-                    await ReportProgress( $"Marking {scrobbleEpisodes.Count} episodes as watched in season {plexSeason.No} of \"{plexShow.Title}\"..");
+                    await ReportProgress($"Marking {scrobbleEpisodes.Count} episodes as watched in season {plexSeason.No} of \"{plexShow.Title}\"..");
                     await Task.WhenAll(scrobbleEpisodes.Select(_plexClient.Scrobble));
-                    await ReportProgress( "Done!");
+                    await ReportProgress("Done!");
                 }
             }
         }

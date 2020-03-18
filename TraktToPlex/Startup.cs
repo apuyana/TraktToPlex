@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TraktToPlex.Hubs;
-using TraktToPlex.Plex;
+using Plex = PlexClient;
 
 namespace TraktToPlex
 {
@@ -37,7 +37,7 @@ namespace TraktToPlex
             services.AddRazorPages();
 
             services.AddSingleton(Configuration);
-            services.AddScoped<PlexClient>();
+            services.AddScoped<Plex.Client>();
             services.AddSignalR();
         }
 
