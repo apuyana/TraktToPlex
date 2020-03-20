@@ -9,7 +9,7 @@ using TraktNet;
 using TraktNet.Objects.Authentication;
 using Plex = PlexClient;
 
-namespace TraktConsoleClient
+namespace SyncConsoleClient
 {
     internal class Program
     {

@@ -1,0 +1,23 @@
+{
+  "traktConfig": { // create trakt api app at https://trakt.tv/oauth/applications/new
+    // Only important field is Redirect uri, which should be https://localhost:44364/Home/TraktReturn (modify hostname and port for your own needs. Localhost works perfectly fine for development)
+    "key": "...",
+    "clientId": "...",
+    "clientSecret": ".."
+  },
+  "plexConfig": {
+    // Just make your own, for example generate a random guid
+    "clientSecret": "...",
+    // Get all this fields from the site version.
+    "plexKey": "...",
+    "plexServerKey": "...",
+    "servers": [
+      {
+        "id": "..",
+        "name": "Server1",
+        "url": "http://127.0.0.1:32400"
+      }
+    ],
+    "server": "Server1"
+  }
+}
