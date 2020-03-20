@@ -15,6 +15,9 @@ using Plex = PlexClient;
 
 namespace SyncClient
 {
+    /// <summary>
+    /// Agent for sync media elements.
+    /// </summary>
     public class SyncAgent
     {
         /// <summary>
@@ -110,7 +113,7 @@ namespace SyncClient
 
             await ReportProgressAsync($"------- All processed, Plex movies: {plexMovies.Length}; Trakt movies: {traktMovies.Length}; Processed trakt movies found: {processedMovies.Count}");
 
-            if (DeleteFromCollection && traktMovies.Length > 0 && processedMovies.Count > 0)
+            if (traktMovies.Length > 0 && processedMovies.Count > 0)
             {
                 List<ITraktMovie> deleteQueueMovies = new List<ITraktMovie>(traktMovies.Length);
 
@@ -129,7 +132,7 @@ namespace SyncClient
 
                 await ReportProgressAsync($"------- Trakt movies to remove from collection: {deleteQueueMovies.Count}");
 
-                if (deleteQueueMovies.Count > 0)
+                if (DeleteFromCollection && deleteQueueMovies.Count > 0)
                 {
                     TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
                     tsp.AddMovies(deleteQueueMovies);
