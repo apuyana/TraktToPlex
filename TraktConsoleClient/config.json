@@ -1,0 +1,20 @@
+{
+  "traktConfig": {
+    "key": "c079ad03478dd640d70bc83c663d12d952899454491c810c9a41519c3178564b",
+    "clientId": "a8554ec9690991d2bf2748ae5c14d4443158fa15d1c570c117a1ef8b838c68b2",
+    "clientSecret": "af004449484c5f95df4eee912675719e71ec5f92191fb81a06470bc1f8a7daed"
+  },
+  "plexConfig": {
+    "clientSecret": "09E7CBC9-9240-4B32-994D-50258FEA4ADA",
+    "plexKey": "FWArq5piwcPSvGBsqUTp",
+    "plexServerKey": "T-gzbG-xgPzyMKXDGDxZ",
+    "servers": [
+      {
+        "id": "7b83d9c6b419aee1afe077cfa097ffe5de7e5be1",
+        "name": "Pi4",
+        "url": "http://181.58.73.60:32400"
+      }
+    ],
+    "server": "Pi4"
+  }
+}
