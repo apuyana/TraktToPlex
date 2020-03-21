@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PlexClient\PlexClient.csproj" />
+    <ProjectReference Include="..\SyncClient\SyncClient.csproj" />
   </ItemGroup>
 
 </Project>

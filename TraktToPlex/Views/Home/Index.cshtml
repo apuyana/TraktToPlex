@@ -78,21 +78,21 @@
             @Html.HiddenFor(m => m.TraktKey)
             @Html.HiddenFor(m => m.PlexKey)
 
-            @using (Html.BeginForm("GetJsonConfig", "Home", null, FormMethod.Post))
+
+            <div>
+                <p>Choose Plex Server</p>
+                <select id="PlexServer" asp-items="Model.PlexServers"></select>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.PlexServerKey))
             {
                 <div>
-                    <p>Choose Plex Server</p>
-                    <select id="PlexServer" asp-items="Model.PlexServers"></select>
-                </div>
-                @if (!string.IsNullOrEmpty(Model.PlexServerKey))
-                {
+                    <button onclick="startMigration();">Start Migration</button>
                     <div>
-                        <button onclick="startMigration();">Start Migration</button>
-                        <div>
-                            <textarea id="migrationStatus" readonly>Ready</textarea>
-                        </div>
+                        <textarea id="migrationStatus" readonly>Ready</textarea>
                     </div>
-
+                </div>
+                @using (Html.BeginForm("GetJsonConfig", "Home", null, FormMethod.Post))
+                {
                     <div>
 
                         <div><button type="submit">Download config</button></div>

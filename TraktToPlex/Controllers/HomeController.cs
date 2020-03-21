@@ -47,9 +47,7 @@ namespace TraktToPlex.Controllers
             {
                 _plexClient.SetAuthToken(HttpContext.Session.GetString("PlexKey"));
                 plexServers = await _plexClient.GetServers();
-            }
-
-            var plexServer = Request.Form["PlexServer"].ToString();
+            }            
 
             var modelJson = new
             {
@@ -65,7 +63,7 @@ namespace TraktToPlex.Controllers
                     PlexKey = HttpContext.Session.GetString("PlexKey"),
                     PlexServerKey = HttpContext.Session.GetString("PlexServerKey"),
                     servers = plexServers,
-                    server = plexServer
+                    server = string.Empty
                 }
             };
 

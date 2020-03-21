@@ -3,6 +3,7 @@ using PlexClient.Models.Shows;
 using SyncClient.Model;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using TraktNet;
@@ -64,6 +65,11 @@ namespace SyncClient
         /// Plex client to use.
         /// </summary>
         public Plex.Client PlexClient { get; private set; }
+
+        /// <summary>
+        /// Delegate to report progress.
+        /// </summary>
+        public Func<string, Task> ReportProgressDelegate { get; set; }
 
         /// <summary>
         /// Trakt client to use.
@@ -283,8 +289,6 @@ namespace SyncClient
                 }
             }
         }
-
-
 
         /// <summary>
         /// Get Trakt episode from id.
@@ -754,9 +758,23 @@ namespace SyncClient
         private Task ReportProgressAsync(string progress)
         {
             return Task.Run(
-                () =>
+                async () =>
                 {
-                    Console.WriteLine(progress);
+                    try
+                    {
+                        if (ReportProgressDelegate == null)
+                        {
+                            Debug.WriteLine(progress);
+                        }
+                        else
+                        {
+                            await ReportProgressDelegate(progress);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
                 });
         }
     }
