@@ -80,7 +80,21 @@ namespace SyncConsoleClient
                     plexClient.SetPlexServerUrl(selectedServer.Value<string>("url"));
                 }
 
-                SyncAgent agent = new SyncAgent(plexClient: plexClient, traktClient: traktClient);
+                bool removeFromCollection = false;
+
+                try
+                {
+                    if (configJson.removeFromCollection != null)
+                    {
+                        removeFromCollection = configJson.removeFromCollection;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(new ArgumentOutOfRangeException("removeFromCollection", ex));
+                }
+
+                SyncAgent agent = new SyncAgent(plexClient: plexClient, traktClient: traktClient, removeFromCollection: removeFromCollection);
 
                 await agent.SyncMoviesAsync();
                 await agent.SyncTVShowsAsync();

@@ -1,5 +1,6 @@
 ﻿using PlexClient.Models;
 using PlexClient.Models.Shows;
+using SyncClient.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +9,9 @@ using TraktNet;
 using TraktNet.Enums;
 using TraktNet.Objects.Basic;
 using TraktNet.Objects.Get.Collections;
+using TraktNet.Objects.Get.Episodes;
 using TraktNet.Objects.Get.Movies;
+using TraktNet.Objects.Get.Shows;
 using TraktNet.Objects.Get.Watched;
 using TraktNet.Objects.Post.Syncs.Collection;
 using TraktNet.Objects.Post.Syncs.History;
@@ -24,9 +27,19 @@ namespace SyncClient
     public class SyncAgent
     {
         /// <summary>
+        /// List of process episodes so far.
+        /// </summary>
+        private readonly List<EpisodeProcessed> processedEpisodesSync = new List<EpisodeProcessed>(1500);
+
+        /// <summary>
         /// List of process movies so far.
         /// </summary>
         private readonly List<ITraktMovie> processedMovies = new List<ITraktMovie>(200);
+
+        /// <summary>
+        /// Cache for the trakt shows.
+        /// </summary>
+        private readonly Dictionary<uint, ITraktShow> traktShowCache = new Dictionary<uint, ITraktShow>();
 
         /// <summary>
         /// Batch limit.
@@ -39,8 +52,9 @@ namespace SyncClient
         /// <param name="plexClient">Client to use with all the relevant fields completed.</param>
         /// <param name="traktClient">Client to use with all the relevant fields completed.</param>
         /// <param name="batchLimit">Number of elements to process at the same time.</param>
-        public SyncAgent(Plex.Client plexClient, TraktClient traktClient, int batchLimit = 2)
+        public SyncAgent(Plex.Client plexClient, TraktClient traktClient, bool removeFromCollection = false, int batchLimit = 2)
         {
+            RemoveFromCollection = removeFromCollection;
             PlexClient = plexClient;
             TraktClient = traktClient;
             this.batchLimit = batchLimit;
@@ -59,12 +73,10 @@ namespace SyncClient
         /// <summary>
         /// Flag to check if the extra item should be removed from collection.
         /// </summary>
-        protected bool DeleteFromCollection
+        protected bool RemoveFromCollection
         {
-            get
-            {
-                return false;
-            }
+            get;
+            private set;
         }
 
         /// <summary>
@@ -146,7 +158,7 @@ namespace SyncClient
 
                 await ReportProgressAsync($"------- Trakt movies to remove from collection: {deleteQueueMovies.Count}");
 
-                if (DeleteFromCollection && deleteQueueMovies.Count > 0)
+                if (RemoveFromCollection && deleteQueueMovies.Count > 0)
                 {
                     TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
                     tsp.AddMovies(deleteQueueMovies);
@@ -161,6 +173,11 @@ namespace SyncClient
         /// <returns>Task to await.</returns>
         public async Task SyncTVShowsAsync()
         {
+            if (processedEpisodesSync.Count > 0)
+            {
+                processedEpisodesSync.Clear();
+            }
+
             Task<Show[]> plexShowsTask = PlexClient.GetShows();
 
             // Get all trakt colleciton.
@@ -209,6 +226,130 @@ namespace SyncClient
             }
 
             await ReportProgressAsync($"------- All processed, Plex shows: {plexShows.Length}; Trakt shows: {traktShows.Length}; Processed trakt shows found: ");
+
+            if (traktShows.Length > 0 && processedEpisodesSync.Count > 0)
+            {
+                List<ITraktEpisode> deleteQueueEpisodes = new List<ITraktEpisode>(traktShows.Length);
+
+                for (int i = 0; i < traktShows.Length; i++)
+                {
+                    foreach (var traktSeason in traktShows[i].CollectionSeasons)
+                    {
+                        foreach (var traktEpisode in traktSeason.Episodes)
+                        {
+                            var traktEpisodeProcessFound = processedEpisodesSync.FirstOrDefault(x => (x.ShowTraktId == traktShows[i].Ids.Trakt) && (x.SeasonNumber == traktSeason.Number) && (x.Number == traktEpisode.Number));
+
+                            if (traktEpisodeProcessFound == null)
+                            {
+                                ITraktEpisode remoteEpisode = await GetTraktEpisodeAsync(showTraktId: traktShows[i].Ids.Trakt, seasonNumber: traktSeason.Number, episodeNumber: traktEpisode.Number);
+
+                                if (remoteEpisode == null)
+                                {
+                                    try
+                                    {
+                                        await ReportProgressAsync($"------- Episode \"{traktShows[i].Title}\" - S{traktSeason.Number.Value.ToString("00")}E{traktEpisode.Number.Value.ToString("00")} could not be found in trakt");
+                                    }
+                                    catch
+                                    {
+                                        await ReportProgressAsync($"------- Episode from  \"{traktShows[i].Title}\" could not be found in trakt");
+                                    }
+                                }
+                                else
+                                {
+                                    // Add to delete list.
+                                    deleteQueueEpisodes.Add(remoteEpisode);
+                                }
+
+                                try
+                                {
+                                    await ReportProgressAsync($"------- Episode \"{traktShows[i].Title}\" - S{traktSeason.Number.Value.ToString("00")}E{traktEpisode.Number.Value.ToString("00")} should be removed from collection");
+                                }
+                                catch
+                                {
+                                    await ReportProgressAsync($"------- Episode from  \"{traktShows[i].Title}\" should be removed from collection");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                await ReportProgressAsync($"------- Trakt movies to remove from collection: {deleteQueueEpisodes.Count}");
+
+                if (RemoveFromCollection && deleteQueueEpisodes.Count > 0)
+                {
+                    TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
+                    tsp.AddEpisodes(deleteQueueEpisodes);
+                    await TraktClient.Sync.RemoveCollectionItemsAsync(tsp.Build());
+                }
+            }
+        }
+
+
+
+        /// <summary>
+        /// Get Trakt episode from id.
+        /// </summary>
+        /// <param name="traktEpisodeProcessFound">Processed episode.</param>
+        /// <returns>Task to await.</returns>
+        private async Task<ITraktEpisode> GetTraktEpisodeAsync(uint showTraktId, int? seasonNumber, int? episodeNumber)
+        {
+            ITraktEpisode foundEpisode = null;
+            ITraktShow traktShow = await GetTraktShowByIdAsync(showTraktId);
+
+            if (traktShow != null && traktShow.Seasons != null)
+            {
+                var traktSeason = traktShow.Seasons.Where(x => x.Number == seasonNumber).FirstOrDefault();
+
+                if (traktSeason != null && traktSeason.Episodes != null)
+                {
+                    foundEpisode = traktSeason.Episodes.Where(x => x.Number == episodeNumber).FirstOrDefault();
+                }
+            }
+
+            return foundEpisode;
+        }
+
+        /// <summary>
+        /// Get trakt show by id.
+        /// </summary>
+        /// <param name="showTraktId">Id to use.</param>
+        /// <returns>Task to await.</returns>
+        private async Task<ITraktShow> GetTraktShowByIdAsync(uint showTraktId)
+        {
+            ITraktShow foundShow = null;
+
+            try
+            {
+                if (!traktShowCache.TryGetValue(key: showTraktId, value: out foundShow))
+                {
+                    var traktRemoteShowResponse = await TraktClient.Shows.GetShowAsync(showIdOrSlug: showTraktId.ToString(), extendedInfo: new TraktExtendedInfo().SetMetadata());
+
+                    if (traktRemoteShowResponse != null && traktRemoteShowResponse.IsSuccess)
+                    {
+                        foundShow = traktRemoteShowResponse.Value;
+
+                        if (foundShow != null)
+                        {
+                            var traktRemoteSeasonResponse = await TraktClient.Seasons.GetAllSeasonsAsync(showIdOrSlug: showTraktId.ToString(), extendedInfo: new TraktExtendedInfo().SetEpisodes().SetMetadata());
+                            if (traktRemoteSeasonResponse != null && traktRemoteSeasonResponse.IsSuccess)
+                            {
+                                foundShow.Seasons = traktRemoteSeasonResponse.Value;
+                            }
+                        }
+                    }
+
+                    if (foundShow != null)
+                    {
+                        traktShowCache.Add(key: showTraktId, value: foundShow);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await ReportProgressAsync($"Problem query showId {showTraktId}. Error: {ex.Message}");
+            }
+
+            return foundShow;
         }
 
         /// <summary>
@@ -266,6 +407,17 @@ namespace SyncClient
         /// <param name="traktIds2">Trakt Ids.</param>
         /// <returns>True if match.</returns>
         private bool HasMatchingId(ITraktMovieIds traktIds1, ITraktMovieIds traktIds2)
+        {
+            return traktIds1.HasAnyId && traktIds2.HasAnyId && traktIds1.Trakt == traktIds2.Trakt;
+        }
+
+        /// <summary>
+        /// Predicate to match a movie.
+        /// </summary>
+        /// <param name="traktIds1">Trakt Ids.</param>
+        /// <param name="traktIds2">Trakt Ids.</param>
+        /// <returns>True if match.</returns>
+        private bool HasMatchingId(ITraktEpisodeIds traktIds1, ITraktEpisodeIds traktIds2)
         {
             return traktIds1.HasAnyId && traktIds2.HasAnyId && traktIds1.Trakt == traktIds2.Trakt;
         }
@@ -425,9 +577,37 @@ namespace SyncClient
                 var traktShow = traktShows.FirstOrDefault(x => HasMatchingId(plexShow, x.Ids));
                 if (traktShow == null)
                 {
-                    await ReportProgressAsync($"The show \"{plexShow.Title}\" was not found on Trakt. Skipping");
+                    await ReportProgressAsync($"The show \"{plexShow.Title}\" was not found on Trakt. Adding");
+
+                    try
+                    {
+                        if (plexShow.ExternalProvider == "thetvdb")
+                        {
+                            var traktRemoteSearchResponse = await TraktClient.Search.GetIdLookupResultsAsync(searchIdType: TraktSearchIdType.TvDB, lookupId: plexShow.ExternalProviderId, extendedInfo: new TraktExtendedInfo().SetMetadata());
+
+                            if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
+                            {
+                                // Found it and is not watched, lets update this.
+                                TraktSyncHistoryPostBuilder syncHistory = new TraktSyncHistoryPostBuilder();
+                                TraktSyncCollectionPostBuilder syncCollection = new TraktSyncCollectionPostBuilder();
+
+                                var traktShowRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
+
+                                if (traktShowRemote != null && traktShowRemote.Show != null)
+                                {
+                                    syncCollection.AddShow(traktShowRemote.Show);
+                                    await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        await ReportProgressAsync($"Moview \"{plexShow.Title}\" Could not be added to trakt");
+                    }
                 }
-                else
+
+                if (traktShow != null)
                 {
                     var traktShowWatched = traktShowsWatched.FirstOrDefault(x => HasMatchingId(plexShow, x.Ids));
                     await PlexClient.PopulateSeasons(plexShow);
@@ -459,6 +639,17 @@ namespace SyncClient
 
                                 traktEpisodeCollected = traktSeasonCollected.Episodes.Where(x => x.Number == plexEpisode.No).FirstOrDefault();
 
+                                if (traktEpisodeCollected != null)
+                                {
+                                    processedEpisodesSync.Add(
+                                        new EpisodeProcessed()
+                                        {
+                                            ShowTraktId = traktShow.Ids.Trakt,
+                                            SeasonNumber = traktSeasonCollected.Number,
+                                            Number = traktEpisodeCollected.Number
+                                        });
+                                }
+
                                 if (plexEpisode.ViewCount > 0 && traktEpisodeWatched == null)
                                 {
                                     // Scrobble to trakt
@@ -474,6 +665,14 @@ namespace SyncClient
                                             TraktSyncHistoryPostBuilder spb = new TraktSyncHistoryPostBuilder();
                                             spb.AddEpisode(traktRemoteEpisodeResponse.Value);
                                             await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
+
+                                            processedEpisodesSync.Add(
+                                                new EpisodeProcessed()
+                                                {
+                                                    ShowTraktId = traktShow.Ids.Trakt,
+                                                    SeasonNumber = traktSeasonCollected.Number,
+                                                    Number = traktRemoteEpisodeResponse.Value.Number
+                                                });
                                         }
                                     }
                                     catch (Exception)
@@ -517,6 +716,14 @@ namespace SyncClient
                                         if (traktEpisode != null)
                                         {
                                             syncCollection.AddEpisode(traktEpisode);
+
+                                            processedEpisodesSync.Add(
+                                                new EpisodeProcessed()
+                                                {
+                                                    ShowTraktId = traktShow.Ids.Trakt,
+                                                    SeasonNumber = plexSeason.No,
+                                                    Number = traktEpisode.Number
+                                                });
 
                                             if (plexEpisode.ViewCount > 0)
                                             {
