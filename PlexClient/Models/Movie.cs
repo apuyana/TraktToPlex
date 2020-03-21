@@ -24,5 +24,7 @@ namespace PlexClient.Models
         public string Title { get; set; }
 
         public int ViewCount { get; set; }
+
+        public int Year { get; set; }
     }
 }

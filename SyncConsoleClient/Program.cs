@@ -83,6 +83,7 @@ namespace SyncConsoleClient
                 SyncAgent agent = new SyncAgent(plexClient: plexClient, traktClient: traktClient);
 
                 await agent.SyncMoviesAsync();
+                await agent.SyncTVShowsAsync();
             }
         }
     }
