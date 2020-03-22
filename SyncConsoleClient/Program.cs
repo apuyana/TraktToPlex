@@ -23,6 +23,11 @@ namespace SyncConsoleClient
                 if (args != null && args.Length > 0)
                 {
                     filePath = args[0];
+
+                    if (!string.IsNullOrWhiteSpace(filePath))
+                    {
+                        Console.WriteLine($"Using path:{filePath} ");
+                    }
                 }
 
                 var t = SyncData(filePath);
@@ -34,13 +39,20 @@ namespace SyncConsoleClient
             }
         }
 
+        private static Task ReportProgress(string progress)
+        {
+            Console.WriteLine(progress);
+
+            return Task.FromResult(0);
+        }
+
         /// <summary>
         /// Sync data.
         /// </summary>
         /// <returns>Task to await.</returns>
         private static async Task SyncData(string filePath = null)
         {
-            if (filePath == null)
+            if (string.IsNullOrWhiteSpace(filePath))
             {
                 filePath = "config.json";
             }
@@ -106,6 +118,8 @@ namespace SyncConsoleClient
                 }
 
                 SyncAgent agent = new SyncAgent(plexClient: plexClient, traktClient: traktClient, removeFromCollection: removeFromCollection);
+
+                agent.ReportProgressDelegate = ReportProgress;
 
                 await agent.SyncMoviesAsync();
                 await agent.SyncTVShowsAsync();
