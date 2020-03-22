@@ -19,7 +19,13 @@ namespace SyncConsoleClient
 
             try
             {
-                var t = SyncData();
+                string filePath = null;
+                if (args != null && args.Length > 0)
+                {
+                    filePath = args[0];
+                }
+
+                var t = SyncData(filePath);
                 t.Wait();
             }
             catch (Exception ex)
@@ -32,9 +38,14 @@ namespace SyncConsoleClient
         /// Sync data.
         /// </summary>
         /// <returns>Task to await.</returns>
-        private static async Task SyncData()
+        private static async Task SyncData(string filePath = null)
         {
-            var configText = await File.ReadAllTextAsync("config.json");
+            if (filePath == null)
+            {
+                filePath = "config.json";
+            }
+
+            var configText = await File.ReadAllTextAsync(filePath);
 
             if (!string.IsNullOrWhiteSpace(configText))
             {
