@@ -63,11 +63,10 @@ namespace SyncConsoleClient
             {
                 dynamic configJson = JsonConvert.DeserializeObject(configText);
 
-                string tclientId = configJson.traktConfig.clientId;
-                string tclientSecret = configJson.traktConfig.clientSecret;
+                string tclientId = configJson.traktConfig.clientId;                
                 string tclientKey = configJson.traktConfig.key;
-
-                TraktClient traktClient = new TraktClient(clientId: tclientId, clientSecret: tclientSecret);
+                
+                TraktClient traktClient = new TraktClient(clientId: tclientId, clientSecret: string.Empty);
                 traktClient.Authorization = TraktAuthorization.CreateWith(accessToken: tclientKey);
 
                 string pclientSecret = configJson.plexConfig.clientSecret;
