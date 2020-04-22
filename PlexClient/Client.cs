@@ -166,6 +166,11 @@ namespace PlexClient
 
         public void SetAuthToken(string authToken)
         {
+            if (_httpClient.DefaultRequestHeaders.Contains("X-Plex-Token"))
+            {
+                _httpClient.DefaultRequestHeaders.Remove("X-Plex-Token");
+            }
+
             _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", authToken);
         }
 
