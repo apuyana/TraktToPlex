@@ -755,27 +755,23 @@ namespace SyncClient
         /// </summary>
         /// <param name="progress">Progress to report.</param>
         /// <returns>Task to await.</returns>
-        private Task ReportProgressAsync(string progress)
+        private async Task ReportProgressAsync(string progress)
         {
-            return Task.Run(
-                async () =>
+            try
+            {
+                if (ReportProgressDelegate == null)
                 {
-                    try
-                    {
-                        if (ReportProgressDelegate == null)
-                        {
-                            Debug.WriteLine(progress);
-                        }
-                        else
-                        {
-                            await ReportProgressDelegate(progress);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine(ex);
-                    }
-                });
+                    Debug.WriteLine(progress);
+                }
+                else
+                {
+                    await ReportProgressDelegate(progress);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
         }
     }
 }
