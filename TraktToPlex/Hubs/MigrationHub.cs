@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using SyncClient;
+using SyncClient.Model;
 using System;
 using System.Threading.Tasks;
 using TraktNet;
@@ -49,9 +50,9 @@ namespace TraktToPlex.Hubs
             }
         }
 
-        private async Task ReportProgress(string progress)
+        private async Task ReportProgress(ProgressReport progressReport)
         {
-            await Clients.Caller.SendAsync("UpdateProgress", $"[{DateTime.Now}]: {progress}");
+            await Clients.Caller.SendAsync("UpdateProgress", $"[{DateTime.Now}]: {progressReport}");
         }
     }
 }

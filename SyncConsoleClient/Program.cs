@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SyncClient;
+using SyncClient.Model;
 using System;
 using System.IO;
 using System.Linq;
@@ -39,9 +40,9 @@ namespace SyncConsoleClient
             }
         }
 
-        private static Task ReportProgress(string progress)
+        private static Task ReportProgress(ProgressReport progressReport)
         {
-            Console.WriteLine(progress);
+            Console.WriteLine(progressReport);
 
             return Task.FromResult(0);
         }

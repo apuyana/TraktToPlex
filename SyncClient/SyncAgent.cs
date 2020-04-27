@@ -28,6 +28,26 @@ namespace SyncClient
     public class SyncAgent
     {
         /// <summary>
+        /// Process id constant.
+        /// </summary>
+        private const int PROCESS_ID_MOVIES = 1;
+
+        /// <summary>
+        /// Process id constant.
+        /// </summary>
+        private const int PROCESS_ID_TVSHOWS = 2;
+
+        /// <summary>
+        /// Process name constant.
+        /// </summary>
+        private const string PROCESS_MOVIES = "Movies";
+
+        /// <summary>
+        /// Process name constant.
+        /// </summary>
+        private const string PROCESS_TVSHOWS = "TV Shows";
+
+        /// <summary>
         /// List of process episodes so far.
         /// </summary>
         private readonly List<EpisodeProcessed> processedEpisodesSync = new List<EpisodeProcessed>(1500);
@@ -69,7 +89,7 @@ namespace SyncClient
         /// <summary>
         /// Delegate to report progress.
         /// </summary>
-        public Func<string, Task> ReportProgressDelegate { get; set; }
+        public Func<ProgressReport, Task> ReportProgressDelegate { get; set; }
 
         /// <summary>
         /// Trakt client to use.
@@ -114,7 +134,14 @@ namespace SyncClient
                 (traktMovies != null) && (traktMovies.Length > 0) &&
                 (plexMovies != null) && (plexMovies.Length > 0))
             {
-                await ReportProgressAsync($"Total plex movies: {plexMovies.Length}; Total watched Trakt Movies {traktMoviesWatched.Length}");
+                await ReportProgressAsync(new ProgressReportMovie()
+                {
+                    Id = PROCESS_ID_MOVIES,
+                    Name = PROCESS_MOVIES,
+                    ItemName = "Summary",
+                    Message = $"Total plex movies: {plexMovies.Length}; Total watched Trakt Movies {traktMoviesWatched.Length}",
+                    Status = ProgressStatus.Message
+                });
 
                 int calculatedLimit = plexMovies.Length;
                 int i;
@@ -132,18 +159,22 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies));
+                            batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies, itemCount: i + j, totalCount: calculatedLimit));
                         }
                     }
 
                     await Task.WhenAll(batchTasks.ToArray());
-
-                    await ReportProgressAsync(string.Empty);
-                    await ReportProgressAsync($"------- Processed from: {i} to {i + batchLimit}. Total to process: {calculatedLimit} ----------");
                 }
             }
 
-            await ReportProgressAsync($"------- All processed, Plex movies: {plexMovies.Length}; Trakt movies: {traktMovies.Length}; Processed trakt movies found: {processedMovies.Count}");
+            await ReportProgressAsync(new ProgressReportMovie()
+            {
+                Id = PROCESS_ID_MOVIES,
+                Name = PROCESS_MOVIES,
+                ItemName = "Summary",
+                Message = $"All processed, Plex movies: {plexMovies.Length}; Trakt movies: {traktMovies.Length}; Processed trakt movies found: {processedMovies.Count}",
+                Status = ProgressStatus.Message
+            });
 
             if (traktMovies.Length > 0 && processedMovies.Count > 0)
             {
@@ -158,11 +189,26 @@ namespace SyncClient
                         // Add to delete list.
 
                         deleteQueueMovies.Add(traktMovies[i]);
-                        await ReportProgressAsync($"------- Movie {traktMovies[i].Title} should be removed from collection");
+                        await ReportProgressAsync(new ProgressReportMovie()
+                        {
+                            Id = PROCESS_ID_MOVIES,
+                            Name = PROCESS_MOVIES,
+                            ItemName = traktMovies[i].Title,
+                            CurrentItemCount = i,
+                            TotalItemsCount = traktMovies.Length,
+                            Year = traktMovies[i].Year,
+                            Status = ProgressStatus.Remove,
+                        });
                     }
                 }
 
-                await ReportProgressAsync($"------- Trakt movies to remove from collection: {deleteQueueMovies.Count}");
+                await ReportProgressAsync(new ProgressReportMovie()
+                {
+                    Id = PROCESS_ID_MOVIES,
+                    Name = PROCESS_MOVIES,
+                    Status = ProgressStatus.Message,
+                    Message = $"------- Trakt movies to remove from collection: {deleteQueueMovies.Count}",
+                });
 
                 if (RemoveFromCollection && deleteQueueMovies.Count > 0)
                 {
@@ -202,8 +248,6 @@ namespace SyncClient
                 (traktShows != null) && (traktShows.Length > 0) &&
                 (plexShows != null) && (plexShows.Length > 0))
             {
-                await ReportProgressAsync($"Total plex shows: {plexShows.Length}; Total watched Trakt Shows {traktShowsWatched.Length}");
-
                 int calculatedLimit = plexShows.Length;
                 int i;
                 List<Task> batchTasks = new List<Task>(batchLimit);
@@ -220,18 +264,22 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows));
+                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows, itemCount: i + j, totalCount: calculatedLimit));
                         }
                     }
 
                     await Task.WhenAll(batchTasks.ToArray());
-
-                    await ReportProgressAsync(string.Empty);
-                    await ReportProgressAsync($"------- Processed from: {i} to {i + batchLimit}. Total to process: {calculatedLimit} ----------");
                 }
             }
 
-            await ReportProgressAsync($"------- All processed, Plex shows: {plexShows.Length}; Trakt shows: {traktShows.Length}; Processed trakt shows found: ");
+            await ReportProgressAsync(new ProgressReportTVShow()
+            {
+                Id = PROCESS_ID_TVSHOWS,
+                Name = PROCESS_TVSHOWS,
+                ItemName = "Summary",
+                Message = $"------- All processed, Plex shows: {plexShows.Length}; Trakt shows: {traktShows.Length}; Processed trakt shows found: ",
+                Status = ProgressStatus.Message
+            });
 
             if (traktShows.Length > 0 && processedEpisodesSync.Count > 0)
             {
@@ -249,18 +297,7 @@ namespace SyncClient
                             {
                                 ITraktEpisode remoteEpisode = await GetTraktEpisodeAsync(showTraktId: traktShows[i].Ids.Trakt, seasonNumber: traktSeason.Number, episodeNumber: traktEpisode.Number);
 
-                                if (remoteEpisode == null)
-                                {
-                                    try
-                                    {
-                                        await ReportProgressAsync($"------- Episode \"{traktShows[i].Title}\" - S{traktSeason.Number.Value.ToString("00")}E{traktEpisode.Number.Value.ToString("00")} could not be found in trakt");
-                                    }
-                                    catch
-                                    {
-                                        await ReportProgressAsync($"------- Episode from  \"{traktShows[i].Title}\" could not be found in trakt");
-                                    }
-                                }
-                                else
+                                if (remoteEpisode != null)
                                 {
                                     // Add to delete list.
                                     deleteQueueEpisodes.Add(remoteEpisode);
@@ -268,24 +305,64 @@ namespace SyncClient
 
                                 try
                                 {
-                                    await ReportProgressAsync($"------- Episode \"{traktShows[i].Title}\" - S{traktSeason.Number.Value.ToString("00")}E{traktEpisode.Number.Value.ToString("00")} should be removed from collection");
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = traktShows[i].Title,
+                                        Season = traktSeason.Number.Value,
+                                        Episode = traktEpisode.Number.Value,
+                                        CurrentItemCount = i,
+                                        TotalItemsCount = traktShows.Length,
+                                        Status = ProgressStatus.ShouldRemove
+                                    });
                                 }
                                 catch
                                 {
-                                    await ReportProgressAsync($"------- Episode from  \"{traktShows[i].Title}\" should be removed from collection");
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = traktShows[i].Title,
+                                        CurrentItemCount = i,
+                                        TotalItemsCount = traktShows.Length,
+                                        Status = ProgressStatus.ShouldRemove
+                                    });
                                 }
                             }
                         }
                     }
                 }
 
-                await ReportProgressAsync($"------- Trakt movies to remove from collection: {deleteQueueEpisodes.Count}");
+                await ReportProgressAsync(new ProgressReportTVShow()
+                {
+                    Id = PROCESS_ID_TVSHOWS,
+                    Name = PROCESS_TVSHOWS,
+                    ItemName = "Summary",
+                    Message = $"------- Trakt episodes to remove from collection: {deleteQueueEpisodes.Count}",
+                    Status = ProgressStatus.Message
+                });
 
                 if (RemoveFromCollection && deleteQueueEpisodes.Count > 0)
                 {
                     TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
                     tsp.AddEpisodes(deleteQueueEpisodes);
                     await TraktClient.Sync.RemoveCollectionItemsAsync(tsp.Build());
+
+                    for (int i = 0; i < deleteQueueEpisodes.Count; i++)
+                    {
+                        await ReportProgressAsync(new ProgressReportTVShow()
+                        {
+                            Id = PROCESS_ID_TVSHOWS,
+                            Name = PROCESS_TVSHOWS,
+                            ItemName = deleteQueueEpisodes[i].Title,
+                            Season = deleteQueueEpisodes[i].SeasonNumber,
+                            Episode = deleteQueueEpisodes[i].Number,
+                            CurrentItemCount = i,
+                            TotalItemsCount = traktShows.Length,
+                            Status = ProgressStatus.Remove
+                        });
+                    }
                 }
             }
         }
@@ -350,7 +427,13 @@ namespace SyncClient
             }
             catch (Exception ex)
             {
-                await ReportProgressAsync($"Problem query showId {showTraktId}. Error: {ex.Message}");
+                await ReportProgressAsync(new ProgressReportTVShow()
+                {
+                    Id = PROCESS_ID_TVSHOWS,
+                    Name = PROCESS_TVSHOWS,
+                    Message = $"Problem query showId {showTraktId}. Error: {ex.Message}",
+                    Status = ProgressStatus.Message
+                });
             }
 
             return foundShow;
@@ -444,12 +527,21 @@ namespace SyncClient
         /// <param name="traktMovies">All movie collection.</param>
         /// <param name="traktMoviesWatched">All Trakt movies to search.</param>
         /// <returns>Task to await.</returns>
-        private async Task ProcessPlexMovieAsync(Movie plexMovie, ITraktCollectionMovie[] traktMovies, ITraktWatchedMovie[] traktMoviesWatched)
+        private async Task ProcessPlexMovieAsync(Movie plexMovie, ITraktCollectionMovie[] traktMovies, ITraktWatchedMovie[] traktMoviesWatched, int itemCount, int totalCount)
         {
             var traktMovieWatched = traktMoviesWatched.FirstOrDefault(x => HasMatchingId(plexMovie, x.Ids));
             if (traktMovieWatched == null)
             {
-                await ReportProgressAsync($"The movie \"{plexMovie.Title}\" was not found as watched on Trakt.");
+                await ReportProgressAsync(new ProgressReportMovie()
+                {
+                    Id = PROCESS_ID_MOVIES,
+                    Name = PROCESS_MOVIES,
+                    ItemName = plexMovie.Title,
+                    Year = plexMovie.Year,
+                    CurrentItemCount = itemCount,
+                    TotalItemsCount = totalCount,
+                    Status = ProgressStatus.NotWatchedRemote
+                });
 
                 var traktMovie = traktMovies.FirstOrDefault(x => HasMatchingId(plexMovie, x.Ids));
 
@@ -463,7 +555,16 @@ namespace SyncClient
                 {
                     if (traktMovie == null)
                     {
-                        await ReportProgressAsync($"The movie \"{plexMovie.Title}\" was not found on Trakt.");
+                        await ReportProgressAsync(new ProgressReportMovie()
+                        {
+                            Id = PROCESS_ID_MOVIES,
+                            Name = PROCESS_MOVIES,
+                            ItemName = plexMovie.Title,
+                            Year = plexMovie.Year,
+                            CurrentItemCount = itemCount,
+                            TotalItemsCount = totalCount,
+                            Status = ProgressStatus.NotFoundRemote
+                        });
 
                         try
                         {
@@ -486,13 +587,33 @@ namespace SyncClient
 
                                         syncHistory.AddMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddWatchedHistoryItemsAsync(syncHistory.Build());
+
+                                        await ReportProgressAsync(new ProgressReportMovie()
+                                        {
+                                            Id = PROCESS_ID_MOVIES,
+                                            Name = PROCESS_MOVIES,
+                                            ItemName = plexMovie.Title,
+                                            Year = plexMovie.Year,
+                                            CurrentItemCount = itemCount,
+                                            TotalItemsCount = totalCount,
+                                            Status = ProgressStatus.AddRemote
+                                        });
                                     }
                                 }
                             }
                         }
                         catch (Exception)
                         {
-                            await ReportProgressAsync($"Moview \"{plexMovie.Title}\" Could not be added to trakt");
+                            await ReportProgressAsync(new ProgressReportMovie()
+                            {
+                                Id = PROCESS_ID_MOVIES,
+                                Name = PROCESS_MOVIES,
+                                ItemName = plexMovie.Title,
+                                Year = plexMovie.Year,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.ErrorAddRemote
+                            });
                         }
                     }
                     else
@@ -504,16 +625,32 @@ namespace SyncClient
 
                         await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
 
-                        await ReportProgressAsync($"The movie \"{plexMovie.Title}\" was set as watched on Trakt");
+                        await ReportProgressAsync(new ProgressReportMovie()
+                        {
+                            Id = PROCESS_ID_MOVIES,
+                            Name = PROCESS_MOVIES,
+                            ItemName = plexMovie.Title,
+                            Year = plexMovie.Year,
+                            CurrentItemCount = itemCount,
+                            TotalItemsCount = totalCount,
+                            Status = ProgressStatus.WatchedRemote
+                        });
                     }
                 }
                 else
                 {
-                    await ReportProgressAsync($"The movie \"{plexMovie.Title}\" was not watched on Trakt or plex.");
-
                     if (traktMovie == null)
                     {
-                        await ReportProgressAsync($"The movie \"{plexMovie.Title}\" was not found on Trakt.");
+                        await ReportProgressAsync(new ProgressReportMovie()
+                        {
+                            Id = PROCESS_ID_MOVIES,
+                            Name = PROCESS_MOVIES,
+                            ItemName = plexMovie.Title,
+                            Year = plexMovie.Year,
+                            CurrentItemCount = itemCount,
+                            TotalItemsCount = totalCount,
+                            Status = ProgressStatus.NotFoundRemote
+                        });
 
                         try
                         {
@@ -533,13 +670,33 @@ namespace SyncClient
                                     {
                                         syncCollection.AddMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
+
+                                        await ReportProgressAsync(new ProgressReportMovie()
+                                        {
+                                            Id = PROCESS_ID_MOVIES,
+                                            Name = PROCESS_MOVIES,
+                                            ItemName = plexMovie.Title,
+                                            Year = plexMovie.Year,
+                                            CurrentItemCount = itemCount,
+                                            TotalItemsCount = totalCount,
+                                            Status = ProgressStatus.AddRemote
+                                        });
                                     }
                                 }
                             }
                         }
                         catch (Exception)
                         {
-                            await ReportProgressAsync($"Moview \"{plexMovie.Title}\" Could not be added to trakt");
+                            await ReportProgressAsync(new ProgressReportMovie()
+                            {
+                                Id = PROCESS_ID_MOVIES,
+                                Name = PROCESS_MOVIES,
+                                ItemName = plexMovie.Title,
+                                Year = plexMovie.Year,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.ErrorAddRemote
+                            });
                         }
                     }
                 }
@@ -549,16 +706,44 @@ namespace SyncClient
                 // Add to the processed list to find extra items.
                 processedMovies.Add(traktMovieWatched);
 
-                await ReportProgressAsync($"Found the movie \"{plexMovie.Title}\" as watched on Trakt. Processing!");
+                await ReportProgressAsync(new ProgressReportMovie()
+                {
+                    Id = PROCESS_ID_MOVIES,
+                    Name = PROCESS_MOVIES,
+                    ItemName = plexMovie.Title,
+                    Year = plexMovie.Year,
+                    CurrentItemCount = itemCount,
+                    TotalItemsCount = totalCount,
+                    Status = ProgressStatus.Processing
+                });
 
                 if (plexMovie.ViewCount > 0)
                 {
-                    await ReportProgressAsync($"Movie \"{plexMovie.Title}\" has {plexMovie.ViewCount} views on Plex. Nothing more to do");
+                    await ReportProgressAsync(new ProgressReportMovie()
+                    {
+                        Id = PROCESS_ID_MOVIES,
+                        Name = PROCESS_MOVIES,
+                        ItemName = plexMovie.Title,
+                        Year = plexMovie.Year,
+                        CurrentItemCount = itemCount,
+                        TotalItemsCount = totalCount,
+                        Status = ProgressStatus.Nothing
+                    });
                 }
                 else
                 {
                     await PlexClient.Scrobble(plexMovie);
-                    await ReportProgressAsync($"Marking {plexMovie.Title} as watched.");
+
+                    await ReportProgressAsync(new ProgressReportMovie()
+                    {
+                        Id = PROCESS_ID_MOVIES,
+                        Name = PROCESS_MOVIES,
+                        ItemName = plexMovie.Title,
+                        Year = plexMovie.Year,
+                        CurrentItemCount = itemCount,
+                        TotalItemsCount = totalCount,
+                        Status = ProgressStatus.Sync
+                    });
                 }
             }
         }
@@ -570,18 +755,36 @@ namespace SyncClient
         /// <param name="traktShowsWatched">List of trakt watched shows.</param>
         /// <param name="traktShows">List of all trakt shows.</param>
         /// <returns>Task to await.</returns>
-        private async Task ProcessPlexShowAsync(Show plexShow, ITraktWatchedShow[] traktShowsWatched, ITraktCollectionShow[] traktShows)
+        private async Task ProcessPlexShowAsync(Show plexShow, ITraktWatchedShow[] traktShowsWatched, ITraktCollectionShow[] traktShows, int itemCount, int totalCount)
         {
             if (plexShow.ExternalProvider.Equals("themoviedb"))
             {
-                await ReportProgressAsync($"Skipping {plexShow.Title} since it's configured to use TheMovieDb agent for metadata. This agent isn't supported, as Trakt doesn't have TheMovieDb ID's.");
+                await ReportProgressAsync(new ProgressReportTVShow()
+                {
+                    Id = PROCESS_ID_TVSHOWS,
+                    Name = PROCESS_TVSHOWS,
+                    ItemName = plexShow.Title,
+                    ExternalProviderId = plexShow.ExternalProviderId,
+                    CurrentItemCount = itemCount,
+                    TotalItemsCount = totalCount,
+                    Status = ProgressStatus.NotSupported
+                });
             }
             else
             {
                 var traktShow = traktShows.FirstOrDefault(x => HasMatchingId(plexShow, x.Ids));
                 if (traktShow == null)
                 {
-                    await ReportProgressAsync($"The show \"{plexShow.Title}\" was not found on Trakt. Adding");
+                    await ReportProgressAsync(new ProgressReportTVShow()
+                    {
+                        Id = PROCESS_ID_TVSHOWS,
+                        Name = PROCESS_TVSHOWS,
+                        ItemName = plexShow.Title,
+                        ExternalProviderId = plexShow.ExternalProviderId,
+                        CurrentItemCount = itemCount,
+                        TotalItemsCount = totalCount,
+                        Status = ProgressStatus.NotFoundRemote
+                    });
 
                     try
                     {
@@ -601,13 +804,33 @@ namespace SyncClient
                                 {
                                     syncCollection.AddShow(traktShowRemote.Show);
                                     await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
+
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = plexShow.Title,
+                                        ExternalProviderId = plexShow.ExternalProviderId,
+                                        CurrentItemCount = itemCount,
+                                        TotalItemsCount = totalCount,
+                                        Status = ProgressStatus.AddRemote
+                                    });
                                 }
                             }
                         }
                     }
                     catch (Exception)
                     {
-                        await ReportProgressAsync($"Moview \"{plexShow.Title}\" Could not be added to trakt");
+                        await ReportProgressAsync(new ProgressReportTVShow()
+                        {
+                            Id = PROCESS_ID_TVSHOWS,
+                            Name = PROCESS_TVSHOWS,
+                            ItemName = plexShow.Title,
+                            ExternalProviderId = plexShow.ExternalProviderId,
+                            CurrentItemCount = itemCount,
+                            TotalItemsCount = totalCount,
+                            Status = ProgressStatus.ErrorAddRemote
+                        });
                     }
                 }
 
@@ -656,8 +879,18 @@ namespace SyncClient
 
                                 if (plexEpisode.ViewCount > 0 && traktEpisodeWatched == null)
                                 {
-                                    // Scrobble to trakt
-                                    await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")}E{plexEpisode.No.ToString("00")} has {plexEpisode.ViewCount } views on Plex. Mark as watched on trakt");
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = plexShow.Title,
+                                        Season = plexSeason.No,
+                                        Episode = plexEpisode.No,
+                                        ExternalProviderId = plexShow.ExternalProviderId,
+                                        CurrentItemCount = itemCount,
+                                        TotalItemsCount = totalCount,
+                                        Status = ProgressStatus.Processing
+                                    });
 
                                     try
                                     {
@@ -670,6 +903,19 @@ namespace SyncClient
                                             spb.AddEpisode(traktRemoteEpisodeResponse.Value);
                                             await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
 
+                                            await ReportProgressAsync(new ProgressReportTVShow()
+                                            {
+                                                Id = PROCESS_ID_TVSHOWS,
+                                                Name = PROCESS_TVSHOWS,
+                                                ItemName = plexShow.Title,
+                                                Season = plexSeason.No,
+                                                Episode = plexEpisode.No,
+                                                ExternalProviderId = plexShow.ExternalProviderId,
+                                                CurrentItemCount = itemCount,
+                                                TotalItemsCount = totalCount,
+                                                Status = ProgressStatus.Sync
+                                            });
+
                                             processedEpisodesSync.Add(
                                                 new EpisodeProcessed()
                                                 {
@@ -681,25 +927,67 @@ namespace SyncClient
                                     }
                                     catch (Exception)
                                     {
-                                        await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")}E{plexEpisode.No.ToString("00")} Could not be added to trakt");
+                                        await ReportProgressAsync(new ProgressReportTVShow()
+                                        {
+                                            Id = PROCESS_ID_TVSHOWS,
+                                            Name = PROCESS_TVSHOWS,
+                                            ItemName = plexShow.Title,
+                                            Season = plexSeason.No,
+                                            Episode = plexEpisode.No,
+                                            ExternalProviderId = plexShow.ExternalProviderId,
+                                            CurrentItemCount = itemCount,
+                                            TotalItemsCount = totalCount,
+                                            Status = ProgressStatus.ErrorAddRemote
+                                        });
                                     }
                                 }
                                 else if ((traktEpisodeWatched != null) && (traktEpisodeWatched.Plays > 0) && (plexEpisode.ViewCount == 0))
                                 {
-                                    // Scroble to plex.
-                                    await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")}E{plexEpisode.No.ToString("00")} has {traktEpisodeWatched.Plays } views on Trakt. Mark as watched on plex");
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = plexShow.Title,
+                                        Season = plexSeason.No,
+                                        Episode = plexEpisode.No,
+                                        ExternalProviderId = plexShow.ExternalProviderId,
+                                        CurrentItemCount = itemCount,
+                                        TotalItemsCount = totalCount,
+                                        Status = ProgressStatus.Sync
+                                    });
 
                                     await PlexClient.Scrobble(plexEpisode);
                                 }
                                 else if ((traktEpisodeWatched != null) && (traktEpisodeWatched.Plays > 0) && (plexEpisode.ViewCount > 0))
                                 {
-                                    await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")}E{plexEpisode.No.ToString("00")} has {plexEpisode.ViewCount } views on Plex. Nothing more to do");
+                                    await ReportProgressAsync(new ProgressReportTVShow()
+                                    {
+                                        Id = PROCESS_ID_TVSHOWS,
+                                        Name = PROCESS_TVSHOWS,
+                                        ItemName = plexShow.Title,
+                                        Season = plexSeason.No,
+                                        Episode = plexEpisode.No,
+                                        ExternalProviderId = plexShow.ExternalProviderId,
+                                        CurrentItemCount = itemCount,
+                                        TotalItemsCount = totalCount,
+                                        Status = ProgressStatus.Nothing
+                                    });
                                 }
                             }
                         }
                         else
                         {
-                            await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")} Not found in trakt. Add to collection");
+                            await ReportProgressAsync(new ProgressReportTVShow()
+                            {
+                                Id = PROCESS_ID_TVSHOWS,
+                                Name = PROCESS_TVSHOWS,
+                                ItemName = plexShow.Title,
+                                Season = plexSeason.No,
+                                ExternalProviderId = plexShow.ExternalProviderId,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.Processing
+                            });
 
                             try
                             {
@@ -720,6 +1008,19 @@ namespace SyncClient
                                         if (traktEpisode != null)
                                         {
                                             syncCollection.AddEpisode(traktEpisode);
+
+                                            await ReportProgressAsync(new ProgressReportTVShow()
+                                            {
+                                                Id = PROCESS_ID_TVSHOWS,
+                                                Name = PROCESS_TVSHOWS,
+                                                ItemName = plexShow.Title,
+                                                Season = plexSeason.No,
+                                                Episode = plexEpisode.No,
+                                                ExternalProviderId = plexShow.ExternalProviderId,
+                                                CurrentItemCount = itemCount,
+                                                TotalItemsCount = totalCount,
+                                                Status = ProgressStatus.AddRemote
+                                            });
 
                                             processedEpisodesSync.Add(
                                                 new EpisodeProcessed()
@@ -742,7 +1043,17 @@ namespace SyncClient
                             }
                             catch (Exception)
                             {
-                                await ReportProgressAsync($"Show \"{plexShow.Title}\" - S{plexSeason.No.ToString("00")} Could not be added to trakt");
+                                await ReportProgressAsync(new ProgressReportTVShow()
+                                {
+                                    Id = PROCESS_ID_TVSHOWS,
+                                    Name = PROCESS_TVSHOWS,
+                                    ItemName = plexShow.Title,
+                                    Season = plexSeason.No,
+                                    ExternalProviderId = plexShow.ExternalProviderId,
+                                    CurrentItemCount = itemCount,
+                                    TotalItemsCount = totalCount,
+                                    Status = ProgressStatus.ErrorAddRemote
+                                });
                             }
                         }
                     }
@@ -753,19 +1064,19 @@ namespace SyncClient
         /// <summary>
         /// Wrapper for reporting progress.
         /// </summary>
-        /// <param name="progress">Progress to report.</param>
+        /// <param name="progressReport">Progress to report.</param>
         /// <returns>Task to await.</returns>
-        private async Task ReportProgressAsync(string progress)
+        private async Task ReportProgressAsync(ProgressReport progressReport)
         {
             try
             {
                 if (ReportProgressDelegate == null)
                 {
-                    Debug.WriteLine(progress);
+                    Debug.WriteLine(progressReport);
                 }
                 else
                 {
-                    await ReportProgressDelegate(progress);
+                    await ReportProgressDelegate(progressReport);
                 }
             }
             catch (Exception ex)
