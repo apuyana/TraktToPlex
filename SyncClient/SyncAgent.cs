@@ -30,22 +30,22 @@ namespace SyncClient
         /// <summary>
         /// Process id constant.
         /// </summary>
-        private const int PROCESS_ID_MOVIES = 1;
+        public const int PROCESS_ID_MOVIES = 1;
 
         /// <summary>
         /// Process id constant.
         /// </summary>
-        private const int PROCESS_ID_TVSHOWS = 2;
+        public const int PROCESS_ID_TVSHOWS = 2;
 
         /// <summary>
         /// Process name constant.
         /// </summary>
-        private const string PROCESS_MOVIES = "Movies";
+        public const string PROCESS_MOVIES = "Movies";
 
         /// <summary>
         /// Process name constant.
         /// </summary>
-        private const string PROCESS_TVSHOWS = "TV Shows";
+        public const string PROCESS_TVSHOWS = "TV Shows";
 
         /// <summary>
         /// List of process episodes so far.
