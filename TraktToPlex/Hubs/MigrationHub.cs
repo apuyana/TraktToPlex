@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using SyncClient;
 using SyncClient.Model;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TraktNet;
 using TraktNet.Objects.Authentication;
@@ -41,8 +42,8 @@ namespace TraktToPlex.Hubs
 
                 agent.ReportProgressDelegate = ReportProgress;
 
-                await agent.SyncMoviesAsync();
-                await agent.SyncTVShowsAsync();
+                await agent.SyncMoviesAsync(token: CancellationToken.None);
+                await agent.SyncTVShowsAsync(token: CancellationToken.None);
             }
             catch (Exception e)
             {

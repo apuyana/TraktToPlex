@@ -5,6 +5,7 @@ using SyncClient.Model;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TraktNet;
 using TraktNet.Objects.Authentication;
@@ -121,8 +122,8 @@ namespace SyncConsoleClient
 
                 agent.ReportProgressDelegate = ReportProgress;
 
-                await agent.SyncMoviesAsync();
-                await agent.SyncTVShowsAsync();
+                await agent.SyncMoviesAsync(token: CancellationToken.None);
+                await agent.SyncTVShowsAsync(token: CancellationToken.None);
             }
         }
     }

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TraktNet;
 using TraktNet.Enums;
@@ -109,7 +110,7 @@ namespace SyncClient
         /// Sync all movies.
         /// </summary>
         /// <returns>Task to await.</returns>
-        public async Task SyncMoviesAsync()
+        public async Task SyncMoviesAsync(CancellationToken token)
         {
             if (processedMovies.Count > 0)
             {
@@ -159,7 +160,7 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies, itemCount: i + j, totalCount: calculatedLimit));
+                            batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies, itemCount: i + j, totalCount: calculatedLimit, token: token));
                         }
                     }
 
@@ -223,7 +224,7 @@ namespace SyncClient
         /// Sync all tv shows.
         /// </summary>
         /// <returns>Task to await.</returns>
-        public async Task SyncTVShowsAsync()
+        public async Task SyncTVShowsAsync(CancellationToken token)
         {
             if (processedEpisodesSync.Count > 0)
             {
@@ -264,7 +265,7 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows, itemCount: i + j, totalCount: calculatedLimit));
+                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows, itemCount: i + j, totalCount: calculatedLimit, token:token));
                         }
                     }
 
@@ -527,8 +528,13 @@ namespace SyncClient
         /// <param name="traktMovies">All movie collection.</param>
         /// <param name="traktMoviesWatched">All Trakt movies to search.</param>
         /// <returns>Task to await.</returns>
-        private async Task ProcessPlexMovieAsync(Movie plexMovie, ITraktCollectionMovie[] traktMovies, ITraktWatchedMovie[] traktMoviesWatched, int itemCount, int totalCount)
+        private async Task ProcessPlexMovieAsync(Movie plexMovie, ITraktCollectionMovie[] traktMovies, ITraktWatchedMovie[] traktMoviesWatched, int itemCount, int totalCount, CancellationToken token)
         {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             var traktMovieWatched = traktMoviesWatched.FirstOrDefault(x => HasMatchingId(plexMovie, x.Ids));
             if (traktMovieWatched == null)
             {
@@ -755,8 +761,13 @@ namespace SyncClient
         /// <param name="traktShowsWatched">List of trakt watched shows.</param>
         /// <param name="traktShows">List of all trakt shows.</param>
         /// <returns>Task to await.</returns>
-        private async Task ProcessPlexShowAsync(Show plexShow, ITraktWatchedShow[] traktShowsWatched, ITraktCollectionShow[] traktShows, int itemCount, int totalCount)
+        private async Task ProcessPlexShowAsync(Show plexShow, ITraktWatchedShow[] traktShowsWatched, ITraktCollectionShow[] traktShows, int itemCount, int totalCount, CancellationToken token)
         {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (plexShow.ExternalProvider.Equals("themoviedb"))
             {
                 await ReportProgressAsync(new ProgressReportTVShow()
@@ -832,6 +843,11 @@ namespace SyncClient
                             Status = ProgressStatus.ErrorAddRemote
                         });
                     }
+                }
+
+                if (token.IsCancellationRequested)
+                {
+                    return;
                 }
 
                 if (traktShow != null)
@@ -973,6 +989,11 @@ namespace SyncClient
                                         Status = ProgressStatus.Nothing
                                     });
                                 }
+
+                                if (token.IsCancellationRequested)
+                                {
+                                    return;
+                                }
                             }
                         }
                         else
@@ -1034,6 +1055,11 @@ namespace SyncClient
                                             {
                                                 syncHistory.AddEpisode(traktEpisode);
                                             }
+                                        }
+
+                                        if (token.IsCancellationRequested)
+                                        {
+                                            return;
                                         }
                                     }
 
