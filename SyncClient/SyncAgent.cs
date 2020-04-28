@@ -112,6 +112,11 @@ namespace SyncClient
         /// <returns>Task to await.</returns>
         public async Task SyncMoviesAsync(CancellationToken token)
         {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (processedMovies.Count > 0)
             {
                 processedMovies.Clear();
@@ -165,6 +170,11 @@ namespace SyncClient
                     }
 
                     await Task.WhenAll(batchTasks.ToArray());
+
+                    if (token.IsCancellationRequested)
+                    {
+                        return;
+                    }
                 }
             }
 
@@ -200,7 +210,13 @@ namespace SyncClient
                             Year = traktMovies[i].Year,
                             Status = ProgressStatus.Remove,
                         });
+
+                        if (token.IsCancellationRequested)
+                        {
+                            return;
+                        }
                     }
+
                 }
 
                 await ReportProgressAsync(new ProgressReportMovie()
@@ -226,6 +242,11 @@ namespace SyncClient
         /// <returns>Task to await.</returns>
         public async Task SyncTVShowsAsync(CancellationToken token)
         {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (processedEpisodesSync.Count > 0)
             {
                 processedEpisodesSync.Clear();
@@ -265,11 +286,16 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows, itemCount: i + j, totalCount: calculatedLimit, token:token));
+                            batchTasks.Add(ProcessPlexShowAsync(plexShow: plexShows[i + j], traktShowsWatched: traktShowsWatched, traktShows: traktShows, itemCount: i + j, totalCount: calculatedLimit, token: token));
                         }
                     }
 
                     await Task.WhenAll(batchTasks.ToArray());
+
+                    if (token.IsCancellationRequested)
+                    {
+                        return;
+                    }
                 }
             }
 
@@ -330,6 +356,11 @@ namespace SyncClient
                                         Status = ProgressStatus.ShouldRemove
                                     });
                                 }
+                            }
+
+                            if (token.IsCancellationRequested)
+                            {
+                                return;
                             }
                         }
                     }
