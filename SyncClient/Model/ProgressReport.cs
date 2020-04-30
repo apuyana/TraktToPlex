@@ -1,6 +1,9 @@
 ﻿namespace SyncClient.Model
 {
-    public abstract class ProgressReport
+    /// <summary>
+    /// Report progress.
+    /// </summary>
+    public struct ProgressReport : IProgressReport
     {
         /// <summary>
         /// Current item count.
@@ -35,16 +38,7 @@
         /// <summary>
         /// Total items.
         /// </summary>
-        public int TotalItemsCount { get; set; }
-
-        /// <summary>
-        /// To string for the Element.
-        /// </summary>
-        /// <returns></returns>
-        protected virtual string internalToString()
-        {
-            return $"Id:{Id}; Process:{Name}; ItemName:{ItemName}; {CurrentItemCount}/{TotalItemsCount}; Status:{Status}; Message:{Message};";
-        }
+        public int TotalItemsCount { get; set; }        
 
         /// <summary>
         /// To string for the Element.
@@ -58,7 +52,7 @@
             }
             else
             {
-                return internalToString();
+                return $"Id:{Id}; Process:{Name}; ItemName:{ItemName}; {CurrentItemCount}/{TotalItemsCount}; Status:{Status}; Message:{Message};";
             }
         }
     }

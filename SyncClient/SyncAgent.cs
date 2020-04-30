@@ -90,7 +90,7 @@ namespace SyncClient
         /// <summary>
         /// Delegate to report progress.
         /// </summary>
-        public Func<ProgressReport, Task> ReportProgressDelegate { get; set; }
+        public Func<IProgressReport, Task> ReportProgressDelegate { get; set; }
 
         /// <summary>
         /// Trakt client to use.
@@ -1123,7 +1123,7 @@ namespace SyncClient
         /// </summary>
         /// <param name="progressReport">Progress to report.</param>
         /// <returns>Task to await.</returns>
-        private async Task ReportProgressAsync(ProgressReport progressReport)
+        private async Task ReportProgressAsync(IProgressReport progressReport)
         {
             try
             {

@@ -51,7 +51,7 @@ namespace TraktToPlex.Hubs
             }
         }
 
-        private async Task ReportProgress(ProgressReport progressReport)
+        private async Task ReportProgress(IProgressReport progressReport)
         {
             await Clients.Caller.SendAsync("UpdateProgress", $"[{DateTime.Now}]: {progressReport}");
         }

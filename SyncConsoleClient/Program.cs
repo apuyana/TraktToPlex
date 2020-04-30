@@ -41,7 +41,7 @@ namespace SyncConsoleClient
             }
         }
 
-        private static Task ReportProgress(ProgressReport progressReport)
+        private static Task ReportProgress(IProgressReport progressReport)
         {
             Console.WriteLine(progressReport);
 
