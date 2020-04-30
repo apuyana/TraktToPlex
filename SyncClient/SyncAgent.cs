@@ -175,6 +175,9 @@ namespace SyncClient
                     {
                         return;
                     }
+
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
                 }
             }
 
@@ -296,6 +299,9 @@ namespace SyncClient
                     {
                         return;
                     }
+
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
                 }
             }
 
