@@ -15,8 +15,8 @@ using TraktNet.Objects.Get.Episodes;
 using TraktNet.Objects.Get.Movies;
 using TraktNet.Objects.Get.Shows;
 using TraktNet.Objects.Get.Watched;
-using TraktNet.Objects.Post.Syncs.Collection;
-using TraktNet.Objects.Post.Syncs.History;
+using TraktNet.Objects.Post;
+using TraktNet.Objects.Post.Builder;
 using TraktNet.Requests.Parameters;
 using TraktNet.Responses;
 using Plex = PlexClient;
@@ -124,7 +124,7 @@ namespace SyncClient
 
             Task<Movie[]> plexMoviesTask = PlexClient.GetMovies();
 
-            // Get all trakt colleciton.
+            // Get all trakt collection.
             Task<TraktListResponse<ITraktCollectionMovie>> traktMoviesTask = TraktClient.Sync.GetCollectionMoviesAsync(new TraktExtendedInfo().SetMetadata());
 
             Task<TraktListResponse<ITraktWatchedMovie>> traktMoviesWatchedTask = TraktClient.Sync.GetWatchedMoviesAsync(new TraktExtendedInfo().SetMetadata());
@@ -219,7 +219,6 @@ namespace SyncClient
                             return;
                         }
                     }
-
                 }
 
                 await ReportProgressAsync(new ProgressReportMovie()
@@ -232,15 +231,20 @@ namespace SyncClient
 
                 if (RemoveFromCollection && deleteQueueMovies.Count > 0)
                 {
-                    TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
-                    tsp.AddMovies(deleteQueueMovies);
+                    ITraktSyncCollectionPostBuilder tsp = TraktPost.NewSyncCollectionPost();
+
+                    for (int i = 0; i < deleteQueueMovies.Count; i++)
+                    {
+                        tsp.AddMovieAndMetadata(deleteQueueMovies[i]);
+                    }
+
                     await TraktClient.Sync.RemoveCollectionItemsAsync(tsp.Build());
                 }
             }
         }
 
         /// <summary>
-        /// Sync all tv shows.
+        /// Sync all TV shows.
         /// </summary>
         /// <returns>Task to await.</returns>
         public async Task SyncTVShowsAsync(CancellationToken token)
@@ -257,7 +261,7 @@ namespace SyncClient
 
             Task<Show[]> plexShowsTask = PlexClient.GetShows();
 
-            // Get all trakt colleciton.
+            // Get all trakt collection.
             Task<TraktListResponse<ITraktCollectionShow>> traktShowsTask = TraktClient.Sync.GetCollectionShowsAsync(new TraktExtendedInfo().SetMetadata());
 
             Task<TraktListResponse<ITraktWatchedShow>> traktShowsWatchedTask = TraktClient.Sync.GetWatchedShowsAsync(new TraktExtendedInfo().SetMetadata());
@@ -383,8 +387,12 @@ namespace SyncClient
 
                 if (RemoveFromCollection && deleteQueueEpisodes.Count > 0)
                 {
-                    TraktSyncCollectionPostBuilder tsp = new TraktSyncCollectionPostBuilder();
-                    tsp.AddEpisodes(deleteQueueEpisodes);
+                    ITraktSyncCollectionPostBuilder tsp = TraktPost.NewSyncCollectionPost();
+
+                    for (int i = 0; i < deleteQueueEpisodes.Count; i++)
+                    {
+                        tsp.AddEpisodeAndMetadata(deleteQueueEpisodes[i]);
+                    }
                     await TraktClient.Sync.RemoveCollectionItemsAsync(tsp.Build());
 
                     for (int i = 0; i < deleteQueueEpisodes.Count; i++)
@@ -559,7 +567,7 @@ namespace SyncClient
         }
 
         /// <summary>
-        /// Process single moview.
+        /// Process single movie.
         /// </summary>
         /// <param name="plexMovie">Plex movie to sync.</param>
         /// <param name="traktMovies">All movie collection.</param>
@@ -611,24 +619,27 @@ namespace SyncClient
 
                         try
                         {
-                            if (plexMovie.ExternalProvider == "imdb")
+                            TraktSearchIdType searchType = SupportedSearchIdMovie(plexMovie.ExternalProvider);
+
+                            if (searchType != null)
                             {
-                                var traktRemoteSearchResponse = await TraktClient.Search.GetIdLookupResultsAsync(searchIdType: TraktSearchIdType.ImDB, lookupId: plexMovie.ExternalProviderId, extendedInfo: new TraktExtendedInfo().SetMetadata());
+                                var traktRemoteSearchResponse = await TraktClient.Search.GetIdLookupResultsAsync(searchIdType: searchType, lookupId: plexMovie.ExternalProviderId, extendedInfo: new TraktExtendedInfo().SetMetadata());
 
                                 if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
                                 {
                                     // Found it and is not watched, lets update this.
-                                    TraktSyncHistoryPostBuilder syncHistory = new TraktSyncHistoryPostBuilder();
-                                    TraktSyncCollectionPostBuilder syncCollection = new TraktSyncCollectionPostBuilder();
+
+                                    var syncHistory = TraktPost.NewSyncHistoryPost();
+                                    var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                     var traktMovieRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
 
                                     if (traktMovieRemote != null && traktMovieRemote.Movie != null)
                                     {
-                                        syncCollection.AddMovie(traktMovieRemote.Movie);
+                                        syncCollection.AddCollectedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
-                                        syncHistory.AddMovie(traktMovieRemote.Movie);
+                                        syncHistory.AddWatchedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddWatchedHistoryItemsAsync(syncHistory.Build());
 
                                         await ReportProgressAsync(new ProgressReportMovie()
@@ -643,6 +654,19 @@ namespace SyncClient
                                         });
                                     }
                                 }
+                            }
+                            else
+                            {
+                                await ReportProgressAsync(new ProgressReportMovie()
+                                {
+                                    Id = PROCESS_ID_MOVIES,
+                                    Name = PROCESS_MOVIES,
+                                    ItemName = plexMovie.Title,
+                                    Year = plexMovie.Year,
+                                    CurrentItemCount = itemCount,
+                                    TotalItemsCount = totalCount,
+                                    Status = ProgressStatus.NotFoundRemote
+                                });
                             }
                         }
                         catch (Exception)
@@ -662,9 +686,9 @@ namespace SyncClient
                     else
                     {
                         // Found it and is not watched, lets update this.
-                        TraktSyncHistoryPostBuilder spb = new TraktSyncHistoryPostBuilder();
+                        var spb = TraktPost.NewSyncHistoryPost();
 
-                        spb.AddMovie(traktMovie);
+                        spb.AddWatchedMovie(traktMovie);
 
                         await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
 
@@ -697,21 +721,23 @@ namespace SyncClient
 
                         try
                         {
-                            if (plexMovie.ExternalProvider == "imdb")
+                            TraktSearchIdType searchType = SupportedSearchIdMovie(plexMovie.ExternalProvider);
+
+                            if (searchType != null)
                             {
-                                var traktRemoteSearchResponse = await TraktClient.Search.GetIdLookupResultsAsync(searchIdType: TraktSearchIdType.ImDB, lookupId: plexMovie.ExternalProviderId, extendedInfo: new TraktExtendedInfo().SetMetadata());
+                                var traktRemoteSearchResponse = await TraktClient.Search.GetIdLookupResultsAsync(searchIdType: searchType, lookupId: plexMovie.ExternalProviderId, extendedInfo: new TraktExtendedInfo().SetMetadata());
 
                                 if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
                                 {
                                     // Found it and is not watched, lets update this.
-                                    TraktSyncHistoryPostBuilder syncHistory = new TraktSyncHistoryPostBuilder();
-                                    TraktSyncCollectionPostBuilder syncCollection = new TraktSyncCollectionPostBuilder();
+                                    var syncHistory = TraktPost.NewSyncHistoryPost();
+                                    var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                     var traktMovieRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
 
                                     if (traktMovieRemote != null && traktMovieRemote.Movie != null)
                                     {
-                                        syncCollection.AddMovie(traktMovieRemote.Movie);
+                                        syncCollection.AddCollectedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
                                         await ReportProgressAsync(new ProgressReportMovie()
@@ -727,9 +753,35 @@ namespace SyncClient
                                     }
                                 }
                             }
+                            else
+                            {
+                                await ReportProgressAsync(new ProgressReportMovie()
+                                {
+                                    Id = PROCESS_ID_MOVIES,
+                                    Name = PROCESS_MOVIES,
+                                    ItemName = plexMovie.Title,
+                                    Year = plexMovie.Year,
+                                    CurrentItemCount = itemCount,
+                                    TotalItemsCount = totalCount,
+                                    Status = ProgressStatus.NotSupported
+                                });
+                            }
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            string errorMessage = ex.Message;
+
+                            await ReportProgressAsync(new ProgressReportMovie()
+                            {                                
+                                Id = PROCESS_ID_MOVIES,
+                                Name = PROCESS_MOVIES,
+                                ItemName = plexMovie.Title,
+                                Year = plexMovie.Year,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.ErrorAddRemote                                
+                            });
+
                             await ReportProgressAsync(new ProgressReportMovie()
                             {
                                 Id = PROCESS_ID_MOVIES,
@@ -738,7 +790,8 @@ namespace SyncClient
                                 Year = plexMovie.Year,
                                 CurrentItemCount = itemCount,
                                 TotalItemsCount = totalCount,
-                                Status = ProgressStatus.ErrorAddRemote
+                                Status = ProgressStatus.Message,
+                                Message = ex.Message
                             });
                         }
                     }
@@ -843,14 +896,14 @@ namespace SyncClient
                             if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
                             {
                                 // Found it and is not watched, lets update this.
-                                TraktSyncHistoryPostBuilder syncHistory = new TraktSyncHistoryPostBuilder();
-                                TraktSyncCollectionPostBuilder syncCollection = new TraktSyncCollectionPostBuilder();
+                                var syncHistory = TraktPost.NewSyncHistoryPost();
+                                var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                 var traktShowRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
 
                                 if (traktShowRemote != null && traktShowRemote.Show != null)
                                 {
-                                    syncCollection.AddShow(traktShowRemote.Show);
+                                    syncCollection.AddCollectedShow(traktShowRemote.Show);
                                     await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
                                     await ReportProgressAsync(new ProgressReportTVShow()
@@ -949,11 +1002,15 @@ namespace SyncClient
                                     {
                                         var traktRemoteEpisodeResponse = await TraktClient.Episodes.GetEpisodeAsync(showIdOrSlug: traktShow.Ids.Trakt.ToString(), seasonNumber: Convert.ToUInt32(plexSeason.No), episodeNumber: Convert.ToUInt32(plexEpisode.No), extendedInfo: new TraktExtendedInfo().SetMetadata());
 
+                                        // Add a delay to lower the rate of calls to trakt API.
+                                        await Task.Delay(TimeSpan.FromSeconds(0.35));
+
                                         if (traktRemoteEpisodeResponse != null && traktRemoteEpisodeResponse.IsSuccess)
                                         {
                                             // Found it and is not watched, lets update this.
-                                            TraktSyncHistoryPostBuilder spb = new TraktSyncHistoryPostBuilder();
-                                            spb.AddEpisode(traktRemoteEpisodeResponse.Value);
+                                            var spb = TraktPost.NewSyncHistoryPost();
+
+                                            spb.AddWatchedEpisode(traktRemoteEpisodeResponse.Value);
                                             await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
 
                                             await ReportProgressAsync(new ProgressReportTVShow()
@@ -1054,8 +1111,8 @@ namespace SyncClient
                                 if (traktRemoteSeasonResponse != null && traktRemoteSeasonResponse.IsSuccess)
                                 {
                                     // Found it and is not watched, lets update this.
-                                    TraktSyncHistoryPostBuilder syncHistory = new TraktSyncHistoryPostBuilder();
-                                    TraktSyncCollectionPostBuilder syncCollection = new TraktSyncCollectionPostBuilder();
+                                    var syncHistory = TraktPost.NewSyncHistoryPost();
+                                    var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                     var traktEpisodes = traktRemoteSeasonResponse.Value;
 
@@ -1065,7 +1122,7 @@ namespace SyncClient
 
                                         if (traktEpisode != null)
                                         {
-                                            syncCollection.AddEpisode(traktEpisode);
+                                            syncCollection.AddCollectedEpisode(traktEpisode);
 
                                             await ReportProgressAsync(new ProgressReportTVShow()
                                             {
@@ -1090,7 +1147,7 @@ namespace SyncClient
 
                                             if (plexEpisode.ViewCount > 0)
                                             {
-                                                syncHistory.AddEpisode(traktEpisode);
+                                                syncHistory.AddWatchedEpisode(traktEpisode);
                                             }
                                         }
 
@@ -1121,6 +1178,8 @@ namespace SyncClient
                         }
                     }
                 }
+
+                await Task.Delay(TimeSpan.FromSeconds(2));
             }
         }
 
@@ -1146,6 +1205,28 @@ namespace SyncClient
             {
                 Debug.WriteLine(ex);
             }
+        }
+
+        /// <summary>
+        /// Select the supported Search Id for movies.
+        /// </summary>
+        /// <param name="externalProvider">Provider to check.</param>
+        /// <returns>Search that should be used.</returns>
+        private TraktSearchIdType SupportedSearchIdMovie(string externalProvider)
+        {
+            TraktSearchIdType returnValue = null;
+            switch (externalProvider.ToLowerInvariant())
+            {
+                case "imdb":
+                    returnValue = TraktSearchIdType.ImDB;
+                    break;
+
+                case "themoviedb":
+                    returnValue = TraktSearchIdType.TmDB;
+                    break;
+            }
+
+            return returnValue;
         }
     }
 }
