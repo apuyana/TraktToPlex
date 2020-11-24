@@ -165,7 +165,23 @@ namespace SyncClient
                     {
                         if ((i + j) < calculatedLimit)
                         {
-                            batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies, itemCount: i + j, totalCount: calculatedLimit, token: token));
+                            try
+                            {
+                                batchTasks.Add(ProcessPlexMovieAsync(plexMovie: plexMovies[i + j], traktMoviesWatched: traktMoviesWatched, traktMovies: traktMovies, itemCount: i + j, totalCount: calculatedLimit, token: token));
+                            }
+                            catch (Exception)
+                            {
+                                await ReportProgressAsync(new ProgressReportMovie()
+                                {
+                                    Id = PROCESS_ID_MOVIES,
+                                    Name = PROCESS_MOVIES,
+                                    ItemName = plexMovies[i + j].Title,
+                                    Year = plexMovies[i + j].Year,
+                                    CurrentItemCount = i + j,
+                                    TotalItemsCount = calculatedLimit,
+                                    Status = ProgressStatus.ErrorAddRemote
+                                });
+                            }
                         }
                     }
 
@@ -235,6 +251,7 @@ namespace SyncClient
 
                     for (int i = 0; i < deleteQueueMovies.Count; i++)
                     {
+                        tsp.WithMovie(deleteQueueMovies[i]);
                         tsp.AddMovieAndMetadata(deleteQueueMovies[i]);
                     }
 
@@ -391,8 +408,10 @@ namespace SyncClient
 
                     for (int i = 0; i < deleteQueueEpisodes.Count; i++)
                     {
+                        tsp.WithEpisode(deleteQueueEpisodes[i]);
                         tsp.AddEpisodeAndMetadata(deleteQueueEpisodes[i]);
                     }
+
                     await TraktClient.Sync.RemoveCollectionItemsAsync(tsp.Build());
 
                     for (int i = 0; i < deleteQueueEpisodes.Count; i++)
@@ -636,9 +655,11 @@ namespace SyncClient
 
                                     if (traktMovieRemote != null && traktMovieRemote.Movie != null)
                                     {
+                                        syncCollection.WithMovie(traktMovieRemote.Movie);
                                         syncCollection.AddCollectedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
+                                        syncHistory.WithMovie(traktMovieRemote.Movie);
                                         syncHistory.AddWatchedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddWatchedHistoryItemsAsync(syncHistory.Build());
 
@@ -685,23 +706,40 @@ namespace SyncClient
                     }
                     else
                     {
-                        // Found it and is not watched, lets update this.
-                        var spb = TraktPost.NewSyncHistoryPost();
-
-                        spb.AddWatchedMovie(traktMovie);
-
-                        await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
-
-                        await ReportProgressAsync(new ProgressReportMovie()
+                        try
                         {
-                            Id = PROCESS_ID_MOVIES,
-                            Name = PROCESS_MOVIES,
-                            ItemName = plexMovie.Title,
-                            Year = plexMovie.Year,
-                            CurrentItemCount = itemCount,
-                            TotalItemsCount = totalCount,
-                            Status = ProgressStatus.WatchedRemote
-                        });
+                            // Found it and is not watched, lets update this.
+                            var spb = TraktPost.NewSyncHistoryPost();
+
+                            spb.WithMovie(traktMovie);
+                            spb.AddWatchedMovie(traktMovie);
+
+                            await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
+
+                            await ReportProgressAsync(new ProgressReportMovie()
+                            {
+                                Id = PROCESS_ID_MOVIES,
+                                Name = PROCESS_MOVIES,
+                                ItemName = plexMovie.Title,
+                                Year = plexMovie.Year,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.WatchedRemote
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            await ReportProgressAsync(new ProgressReportMovie()
+                            {
+                                Id = PROCESS_ID_MOVIES,
+                                Name = PROCESS_MOVIES,
+                                ItemName = plexMovie.Title,
+                                Year = plexMovie.Year,
+                                CurrentItemCount = itemCount,
+                                TotalItemsCount = totalCount,
+                                Status = ProgressStatus.ErrorAddRemote
+                            });
+                        }
                     }
                 }
                 else
@@ -729,14 +767,13 @@ namespace SyncClient
 
                                 if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
                                 {
-                                    // Found it and is not watched, lets update this.
-                                    var syncHistory = TraktPost.NewSyncHistoryPost();
                                     var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                     var traktMovieRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
 
                                     if (traktMovieRemote != null && traktMovieRemote.Movie != null)
                                     {
+                                        syncCollection.WithMovie(traktMovieRemote.Movie);
                                         syncCollection.AddCollectedMovie(traktMovieRemote.Movie);
                                         await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
@@ -772,14 +809,14 @@ namespace SyncClient
                             string errorMessage = ex.Message;
 
                             await ReportProgressAsync(new ProgressReportMovie()
-                            {                                
+                            {
                                 Id = PROCESS_ID_MOVIES,
                                 Name = PROCESS_MOVIES,
                                 ItemName = plexMovie.Title,
                                 Year = plexMovie.Year,
                                 CurrentItemCount = itemCount,
                                 TotalItemsCount = totalCount,
-                                Status = ProgressStatus.ErrorAddRemote                                
+                                Status = ProgressStatus.ErrorAddRemote
                             });
 
                             await ReportProgressAsync(new ProgressReportMovie()
@@ -895,14 +932,13 @@ namespace SyncClient
 
                             if (traktRemoteSearchResponse != null && traktRemoteSearchResponse.IsSuccess)
                             {
-                                // Found it and is not watched, lets update this.
-                                var syncHistory = TraktPost.NewSyncHistoryPost();
                                 var syncCollection = TraktPost.NewSyncCollectionPost();
 
                                 var traktShowRemote = traktRemoteSearchResponse.Value.FirstOrDefault();
 
                                 if (traktShowRemote != null && traktShowRemote.Show != null)
                                 {
+                                    syncCollection.WithShow(traktShowRemote.Show);
                                     syncCollection.AddCollectedShow(traktShowRemote.Show);
                                     await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
 
@@ -1003,13 +1039,14 @@ namespace SyncClient
                                         var traktRemoteEpisodeResponse = await TraktClient.Episodes.GetEpisodeAsync(showIdOrSlug: traktShow.Ids.Trakt.ToString(), seasonNumber: Convert.ToUInt32(plexSeason.No), episodeNumber: Convert.ToUInt32(plexEpisode.No), extendedInfo: new TraktExtendedInfo().SetMetadata());
 
                                         // Add a delay to lower the rate of calls to trakt API.
-                                        await Task.Delay(TimeSpan.FromSeconds(0.35));
+                                        await Task.Delay(TimeSpan.FromSeconds(0.25));
 
                                         if (traktRemoteEpisodeResponse != null && traktRemoteEpisodeResponse.IsSuccess)
                                         {
                                             // Found it and is not watched, lets update this.
                                             var spb = TraktPost.NewSyncHistoryPost();
 
+                                            spb.WithEpisode(traktRemoteEpisodeResponse.Value);
                                             spb.AddWatchedEpisode(traktRemoteEpisodeResponse.Value);
                                             await TraktClient.Sync.AddWatchedHistoryItemsAsync(spb.Build());
 
@@ -1116,13 +1153,19 @@ namespace SyncClient
 
                                     var traktEpisodes = traktRemoteSeasonResponse.Value;
 
+                                    List<ITraktEpisode> collectedEpisodes = new List<ITraktEpisode>();
+                                    List<ITraktEpisode> watcheddEpisodes = new List<ITraktEpisode>();
+
+
                                     foreach (var plexEpisode in plexSeason.Episodes)
                                     {
                                         var traktEpisode = traktEpisodes.Where(x => x.Number == plexEpisode.No).FirstOrDefault();
 
                                         if (traktEpisode != null)
                                         {
+                                            syncCollection.WithEpisode(traktEpisode);
                                             syncCollection.AddCollectedEpisode(traktEpisode);
+                                            collectedEpisodes.Add(traktEpisode);
 
                                             await ReportProgressAsync(new ProgressReportTVShow()
                                             {
@@ -1147,7 +1190,9 @@ namespace SyncClient
 
                                             if (plexEpisode.ViewCount > 0)
                                             {
+                                                syncHistory.WithEpisode(traktEpisode);
                                                 syncHistory.AddWatchedEpisode(traktEpisode);
+                                                watcheddEpisodes.Add(traktEpisode);
                                             }
                                         }
 
@@ -1157,11 +1202,18 @@ namespace SyncClient
                                         }
                                     }
 
-                                    await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
-                                    await TraktClient.Sync.AddWatchedHistoryItemsAsync(syncHistory.Build());
+                                    if (collectedEpisodes.Count > 0)
+                                    {
+                                        await TraktClient.Sync.AddCollectionItemsAsync(syncCollection.Build());
+                                    }
+
+                                    if (watcheddEpisodes.Count > 0)
+                                    {
+                                        await TraktClient.Sync.AddWatchedHistoryItemsAsync(syncHistory.Build());
+                                    }
                                 }
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
                                 await ReportProgressAsync(new ProgressReportTVShow()
                                 {
@@ -1179,7 +1231,7 @@ namespace SyncClient
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(2));
+                await Task.Delay(TimeSpan.FromSeconds(.25));
             }
         }
 
